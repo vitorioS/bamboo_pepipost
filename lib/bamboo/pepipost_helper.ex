@@ -22,16 +22,44 @@ defmodule Bamboo.PepipostHelper do
   end
 
   @doc """
-  Add an identifier to uniquely identify the email.
+  Add an identifier to uniquely identify the `to` recipients of the email.
 
   More details can be found in the [Pepipost documentation](https://pepipost.docs.stoplight.io/faqs/what-is-x-apiheader)
 
   ## Example
 
       email
-      |> PepipostHelper.x_apiheader("ID0001")
+      |> PepipostHelper.token_to("ID0001")
   """
-  def x_apiheader(email, id) do
-    Email.put_private(email, :x_apiheader, id)
+  def token_to(email, id) do
+    Email.put_private(email, :token_to, id)
+  end
+
+  @doc """
+  Add an identifier to uniquely identify the `cc` recipients of the email.
+
+  More details can be found in the [Pepipost documentation](https://pepipost.docs.stoplight.io/faqs/what-is-x-apiheader)
+
+  ## Example
+
+  email
+  |> PepipostHelper.token_cc("ID0001")
+  """
+  def token_cc(email, id) do
+    Email.put_private(email, :token_cc, id)
+  end
+
+  @doc """
+  Add an identifier to uniquely identify the `bcc` recipients of the email.
+
+  More details can be found in the [Pepipost documentation](https://pepipost.docs.stoplight.io/faqs/what-is-x-apiheader)
+
+  ## Example
+
+  email
+  |> PepipostHelper.token_bcc("ID0001")
+  """
+  def token_bcc(email, id) do
+    Email.put_private(email, :token_bcc, id)
   end
 end

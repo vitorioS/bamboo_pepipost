@@ -3,7 +3,7 @@ defmodule Bamboo.PepipostAdapter do
   @default_base_uri "https://api.pepipost.com"
   @behaviour Bamboo.Adapter
 
-  alias Bamboo.{Email, Attachment, AdapterHelper}
+  alias Bamboo.{Email, Attachment}
   import Bamboo.ApiError
 
   @doc false
@@ -50,9 +50,11 @@ defmodule Bamboo.PepipostAdapter do
     config = handle_config(config)
     opts = Application.get_env(:bamboo, :hackney_opts, [])
 
-    case :hackney.post(full_uri(config), headers(config), body, [:with_body | opts]) do
+    case :hackney.post(full_uri(config), headers(config), Jason.encode_to_iodata!(body), [
+           :with_body | opts
+         ]) do
       {:ok, status, _headers, response} when status > 299 ->
-        raise_api_error(@service_name, response, body)
+        raise_api_error(@service_name, response, Jason.encode!(body, pretty: true))
 
       {:ok, status, headers, response} ->
         %{status_code: status, headers: headers, body: response}
@@ -66,7 +68,7 @@ defmodule Bamboo.PepipostAdapter do
   def supports_attachments?, do: true
 
   defp full_uri(config) do
-    config.base_uri <> "/v2/sendEmail"
+    config.base_uri <> "/v5/mail/send"
   end
 
   defp headers(config) do
@@ -81,7 +83,6 @@ defmodule Bamboo.PepipostAdapter do
     |> put_text(email)
     |> put_attachments(email)
     |> put_tag(email)
-    |> Jason.encode_to_iodata!()
   end
 
   defp build_personalizations(email) do
@@ -89,42 +90,42 @@ defmodule Bamboo.PepipostAdapter do
     |> put_to(email)
     |> put_cc(email)
     |> put_bcc(email)
-    |> put_x_api_header(email)
+    |> put_token_to(email)
+    |> put_token_cc(email)
+    |> put_token_bcc(email)
     |> List.wrap()
   end
 
-  defp put_to(personalization, %Email{to: to}) do
-    recipients =
-      normalize_address(to)
-      |> Enum.map(fn
-        {nil, address} -> %{"email" => address}
-        {name, address} -> %{"name" => name, "email" => address}
-      end)
+  defp put_to(personalization, %Email{to: to}),
+    do: Map.put(personalization, :to, format_recipients(to))
 
-    Map.put(personalization, :recipient, recipients)
-  end
+  defp put_cc(personalization, %Email{cc: cc}),
+    do: Map.put(personalization, :cc, format_recipients(cc))
 
-  defp put_bcc(personalization, %Email{bcc: bcc}) do
-    addresses = normalize_address(bcc) |> Enum.map(&elem(&1, 1))
-    Map.put(personalization, :recipient_bcc, addresses)
-  end
+  defp put_bcc(personalization, %Email{bcc: bcc}),
+    do: Map.put(personalization, :bcc, format_recipients(bcc))
 
-  defp put_cc(personalization, %Email{cc: cc}) do
-    addresses = normalize_address(cc) |> Enum.map(&elem(&1, 1))
-    Map.put(personalization, :recipient_cc, addresses)
-  end
+  defp put_token_to(personalization, %Email{private: %{:token_to => token_to}}),
+    do: Map.put(personalization, :token_to, token_to)
 
-  defp put_x_api_header(personalization, %Email{private: %{:x_apiheader => x_apiheader}}),
-    do: Map.put(personalization, :"x-apiheader", x_apiheader)
+  defp put_token_to(personalization, %Email{}), do: personalization
 
-  defp put_x_api_header(personalization, %Email{}), do: personalization
+  defp put_token_cc(personalization, %Email{private: %{:token_cc => token_cc}}),
+    do: Map.put(personalization, :token_cc, token_cc)
+
+  defp put_token_cc(personalization, %Email{}), do: personalization
+
+  defp put_token_bcc(personalization, %Email{private: %{:token_bcc => token_bcc}}),
+    do: Map.put(personalization, :token_bcc, token_bcc)
+
+  defp put_token_bcc(personalization, %Email{}), do: personalization
 
   defp put_from(body, %Email{from: from}) do
     from =
       case normalize_address(from) do
-        address when is_binary(address) -> %{"fromEmail" => address}
-        {name, address} when name in ["", nil] -> %{"fromEmail" => address}
-        {name, address} -> %{"fromName" => String.trim(name, "\""), "fromEmail" => address}
+        address when is_binary(address) -> %{"email" => address}
+        {name, address} when name in ["", nil] -> %{"email" => address}
+        {name, address} -> %{"name" => String.trim(name, "\""), "email" => address}
       end
 
     Map.put(body, :from, from)
@@ -138,11 +139,11 @@ defmodule Bamboo.PepipostAdapter do
     do: raise_api_error("Pepipost does not support text_body")
 
   defp put_html(body, %Email{html_body: nil}), do: body
-  defp put_html(body, %Email{html_body: html_body}), do: Map.put(body, :content, html_body)
 
-  defp put_tag(body, %Email{private: %{tags: tags}}) do
-    Map.put(body, :tags, Enum.join(tags, ","))
-  end
+  defp put_html(body, %Email{html_body: html_body}),
+    do: Map.put(body, :content, [%{type: "html", value: html_body}])
+
+  defp put_tag(body, %Email{private: %{tags: tags}}), do: Map.put(body, :tags, tags)
 
   defp put_tag(body, %Email{}), do: body
 
@@ -155,9 +156,17 @@ defmodule Bamboo.PepipostAdapter do
 
   defp prepare_file(%Attachment{} = attachment) do
     %{
-      "fileName" => attachment.filename,
-      "fileContent" => Base.encode64(attachment.data)
+      "name" => attachment.filename,
+      "content" => Base.encode64(attachment.data)
     }
+  end
+
+  defp format_recipients(recipients) do
+    normalize_address(recipients)
+    |> Enum.map(fn
+      {nil, address} -> %{"email" => address}
+      {name, address} -> %{"name" => name, "email" => address}
+    end)
   end
 
   defp normalize_address(address) when is_binary(address), do: {nil, address}
