@@ -3,7 +3,7 @@ defmodule Bamboo.PepipostAdapter do
   @default_base_uri "https://api.pepipost.com"
   @behaviour Bamboo.Adapter
 
-  alias Bamboo.{Email, Attachment, AdapterHelper}
+  alias Bamboo.{Email, Attachment}
   import Bamboo.ApiError
 
   @doc false
@@ -50,9 +50,11 @@ defmodule Bamboo.PepipostAdapter do
     config = handle_config(config)
     opts = Application.get_env(:bamboo, :hackney_opts, [])
 
-    case :hackney.post(full_uri(config), headers(config), body, [:with_body | opts]) do
+    case :hackney.post(full_uri(config), headers(config), Jason.encode_to_iodata!(body), [
+           :with_body | opts
+         ]) do
       {:ok, status, _headers, response} when status > 299 ->
-        raise_api_error(@service_name, response, body)
+        raise_api_error(@service_name, response, Jason.encode!(body, pretty: true))
 
       {:ok, status, headers, response} ->
         %{status_code: status, headers: headers, body: response}
@@ -81,7 +83,6 @@ defmodule Bamboo.PepipostAdapter do
     |> put_text(email)
     |> put_attachments(email)
     |> put_tag(email)
-    |> Jason.encode_to_iodata!()
   end
 
   defp build_personalizations(email) do
