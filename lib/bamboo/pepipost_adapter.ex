@@ -99,11 +99,15 @@ defmodule Bamboo.PepipostAdapter do
   defp put_to(personalization, %Email{to: to}),
     do: Map.put(personalization, :to, format_recipients(to))
 
-  defp put_cc(personalization, %Email{cc: cc}),
-    do: Map.put(personalization, :cc, format_recipients(cc))
+  defp put_cc(personalization, %Email{cc: cc}) do
+    cc = format_recipients(cc) |> Enum.map(&Map.take(&1, ["email"]))
+    Map.put(personalization, :cc, cc)
+  end
 
-  defp put_bcc(personalization, %Email{bcc: bcc}),
-    do: Map.put(personalization, :bcc, format_recipients(bcc))
+  defp put_bcc(personalization, %Email{bcc: bcc}) do
+    bcc = format_recipients(bcc) |> Enum.map(&Map.take(&1, ["email"]))
+    Map.put(personalization, :bcc, bcc)
+  end
 
   defp put_token_to(personalization, %Email{private: %{:token_to => token_to}}),
     do: Map.put(personalization, :token_to, token_to)
