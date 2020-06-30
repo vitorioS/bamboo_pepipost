@@ -48,7 +48,7 @@ defmodule Bamboo.PepipostAdapter do
   def deliver(email, config) do
     body = to_pepipost_body(email)
     config = handle_config(config)
-    opts = Application.get_env(:bamboo, :hackney_opts, [])
+    opts = hackney_opts()
 
     case :hackney.post(full_uri(config), headers(config), Jason.encode_to_iodata!(body), [
            :with_body | opts
@@ -179,5 +179,16 @@ defmodule Bamboo.PepipostAdapter do
 
   defp normalize_address(addresses) when is_list(addresses) do
     Enum.map(addresses, &normalize_address/1)
+  end
+
+  defp hackney_opts do
+    case Application.get_env(:bamboo, :pepipost_hackney_opts) do
+      nil -> default_hackney_opts()
+      opts -> opts
+    end
+  end
+
+  defp default_hackney_opts do
+    Application.get_env(:bamboo, :hackney_opts, [])
   end
 end
