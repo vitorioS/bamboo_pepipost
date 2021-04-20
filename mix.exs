@@ -20,9 +20,9 @@ defmodule BambooPepipost.MixProject do
 
   defp deps do
     [
-      {:bamboo, github: "akash-akya/bamboo"},
+      {:bamboo, github: "vitorioS/bamboo"},
       {:hackney, ">= 1.13.0"},
-      {:jason, "~> 1.0"}
+      {:jason, "~> 1.2.2"}
     ]
   end
 end
