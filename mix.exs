@@ -22,7 +22,7 @@ defmodule BambooPepipost.MixProject do
     [
       {:bamboo, github: "vitorioS/bamboo"},
       {:hackney, ">= 1.13.0"},
-      {:jason, "~> 1.2.2"}
+      {:jason, "~> 1.0", optional: true}
     ]
   end
 end
